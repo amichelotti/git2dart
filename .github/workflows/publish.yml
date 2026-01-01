@@ -17,8 +17,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.platform }}
+        include:
+          - platform: ubuntu-latest
+          - platform: macos-latest
+          - platform: windows-latest
+          - platform: android
+            arch: x86_64
+    runs-on: ${{ matrix.platform == 'android' && 'ubuntu-latest' || matrix.platform }}
 
     steps:
       - name: Set git to use LF
@@ -37,6 +42,7 @@ jobs:
           choco install openssl -y
 
       - name: Setup environment
+        if: ${{ matrix.platform != 'android' }}
         shell: bash
         run: |
           mkdir -p ~/.ssh
@@ -47,8 +53,41 @@ jobs:
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
-      - run: |
-          flutter test 
+      
+      - name: Run tests on desktop platforms
+        if: ${{ matrix.platform != 'android' }}
+        run: |
+          flutter test
+
+      - name: Setup Flutter path for Android
+        if: ${{ matrix.platform == 'android' }}
+        id: flutter-path
+        run: |
+          echo "FLUTTER_PATH=$(which flutter || echo '')" >> $GITHUB_ENV
+          echo "PATH=$PATH" >> $GITHUB_ENV
+
+      - name: Run tests on Android
+        if: ${{ matrix.platform == 'android' }}
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          PATH: ${{ env.PATH }}
+        with:
+          api-level: 30
+          arch: x86_64
+          profile: Nexus 6
+          ram-size: 2048M
+          disk-size: 4096M
+          script: |
+            
+            mkdir -p ~/.ssh
+            ssh-keyscan github.com >> ~/.ssh/known_hosts
+            
+            # Install Flutter if not available in PATH
+            git clone https://github.com/flutter/flutter.git -b stable --depth 1 $HOME/flutter
+            export PATH="$HOME/flutter/bin:$PATH"
+            
+            flutter pub get
+            flutter test 
 
   publish:
     needs: test
