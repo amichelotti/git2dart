@@ -80,6 +80,33 @@ class RemoteCallbacks {
     return 0;
   }
 
+  /// Callback function for customizing SSL certificate verification during HTTPS operations.
+  /// Allows accepting self-signed or internally-signed certificates.
+  static int Function(String host, {required bool isValid})? certificateCheck;
+
+  /// Native callback that handles SSL certificate verification.
+  /// Called by libgit2 when validating server certificates during HTTPS operations.
+  /// Return 0 to accept the certificate, non-zero to reject it.
+  static int certificateCheckCb(
+    Pointer<git_cert> cert,
+    int valid,
+    Pointer<Char> host,
+    Pointer<Void> payload,
+  ) {
+    if (certificateCheck != null) {
+      try {
+        final hostStr = host == nullptr ? 'unknown' : host.toDartString();
+        final result = certificateCheck!(hostStr, isValid: valid == 1);
+        return result;
+      } catch (e) {
+        // If callback throws, reject the certificate
+        return -1;
+      }
+    }
+    // If no custom callback, use libgit2's default validation
+    return valid;
+  }
+
   /// Values used to override the remote creation and customization process
   /// during a clone operation.
   static RemoteCallback? remoteCbData;
@@ -269,6 +296,14 @@ class RemoteCallbacks {
         except,
       );
     }
+
+    if (callbacks.certificateCheck != null) {
+      certificateCheck = callbacks.certificateCheck;
+      callbacksOptions.certificate_check = Pointer.fromFunction(
+        certificateCheckCb,
+        except,
+      );
+    }
   }
 
   /// Resets all callback functions to their original null values.
@@ -281,5 +316,6 @@ class RemoteCallbacks {
     remoteCbData = null;
     repositoryCbData = null;
     credentials = null;
+    certificateCheck = null;
   }
 }

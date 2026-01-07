@@ -19,12 +19,14 @@ class Callbacks {
   /// * [sidebandProgress] - Textual progress updates from remote
   /// * [updateTips] - Reference update notifications
   /// * [pushUpdateReference] - Push operation status updates
+  /// * [certificateCheck] - SSL certificate verification callback
   const Callbacks({
     this.credentials,
     this.transferProgress,
     this.sidebandProgress,
     this.updateTips,
     this.pushUpdateReference,
+    this.certificateCheck,
   });
 
   /// Authentication credentials for Git operations.
@@ -62,4 +64,28 @@ class Callbacks {
   /// * [refname] - Name of the reference being pushed
   /// * [message] - Status message from the remote
   final void Function(String refname, String message)? pushUpdateReference;
+
+  /// Callback for customizing SSL certificate verification.
+  ///
+  /// Called during HTTPS operations to allow custom certificate validation logic.
+  /// This enables accepting self-signed or internally-signed certificates.
+  ///
+  /// Parameters:
+  /// * [host] - The hostname of the remote server
+  /// * [isValid] - Whether the certificate is valid according to standard validation
+  ///
+  /// Return value:
+  /// * `0` - Accept the certificate and continue the operation
+  /// * Non-zero - Reject the certificate and fail the operation
+  ///
+  /// Example: Accept all certificates (useful for internal/self-signed certs):
+  /// ```dart
+  /// certificateCheck: (host, isValid) => 0
+  /// ```
+  ///
+  /// Example: Accept only for specific host:
+  /// ```dart
+  /// certificateCheck: (host, isValid) => host == 'internal.example.com' ? 0 : -1
+  /// ```
+  final int Function(String host, {required bool isValid})? certificateCheck;
 }
